@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claude model advisor</title>
+<meta name="description" content="Suggests a Claude model (Haiku, Sonnet or Opus) and effort level for a prompt. Runs in your browser; nothing is sent anywhere.">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --text: #1f1e1c; --muted: #6b6862; --line: #e4e1da;
+    --haiku: #2f7d5b; --sonnet: #2f5f9e; --opus: #8a4b9e; --accent: #c2603c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1b1a18; --card: #252421; --text: #ecebe7; --muted: #a29e96; --line: #3a3834;
+      --haiku: #6fc79f; --sonnet: #86aee6; --opus: #cf9be0; --accent: #e08a66; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  textarea { width: 100%; min-height: 150px; resize: vertical; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 10px 0 20px; }
+  button { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card); color: var(--text); cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 13px; margin-left: auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .verdict { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .model { font-size: 30px; font-weight: 650; letter-spacing: -0.01em; }
+  .effort { font-size: 14px; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+  .summary { margin: 6px 0 0; }
+  ul { margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+  .meter { position: relative; height: 6px; border-radius: 3px; margin: 16px 0 4px;
+    background: linear-gradient(90deg, var(--haiku) 0 18%, var(--sonnet) 18% 52%, var(--opus) 52% 100%); opacity: .85; }
+  .needle { position: absolute; top: -5px; width: 3px; height: 16px; border-radius: 2px; background: var(--text);
+    transition: left .2s; }
+  .scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 18px; }
+  code { font-size: 12px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Which model for this prompt?</h1>
+  <p class="sub">Paste or type what you're about to ask Claude. The suggestion updates as you type.</p>
+
+  <textarea id="prompt" autofocus placeholder="e.g. Why does the atlas map still flicker when I zoom? I tried the last fix and it still doesn't work."></textarea>
+  <div class="row">
+    <button id="copy" title="Copy the prompt to paste into Claude">Copy prompt</button>
+    <button id="clear">Clear</button>
+    <span class="hint">Pick the model and effort <em>before</em> sending the first message: switching later rebuilds the cache.</span>
+  </div>
+
+  <div class="card" id="result" aria-live="polite">
+    <div class="verdict"><span class="model" id="model">—</span><span class="effort" id="effort" hidden></span></div>
+    <p class="summary" id="summary">Type a prompt.</p>
+    <div class="meter"><div class="needle" id="needle" style="left:30%"></div></div>
+    <div class="scale"><span>Haiku</span><span>Sonnet</span><span>Opus</span></div>
+    <ul id="reasons"></ul>
+  </div>
+
+  <table>
+    <tr><th>Model · effort</th><th>Use it for</th></tr>
+    <tr><td><b style="color:var(--haiku)">Haiku</b> · low</td><td>Tiny mechanical asks: rename, quick lookup, one-line change.</td></tr>
+    <tr><td><b style="color:var(--sonnet)">Sonnet</b> · low</td><td>Routine edits, config changes, short scripts, questions with a known answer.</td></tr>
+    <tr><td><b style="color:var(--sonnet)">Sonnet</b> · medium</td><td>Normal feature work and fixes; browser and desktop-control tasks.</td></tr>
+    <tr><td><b style="color:var(--opus)">Opus</b> · medium</td><td>Building a whole app or tool, analysis, migrations.</td></tr>
+    <tr><td><b style="color:var(--opus)">Opus</b> · high / max</td><td>Design and architecture, hard or repeated bugs, research, performance and concurrency.</td></tr>
+  </table>
+  <p class="foot">Keyword rules, no AI: it's free to use and every suggestion lists its reasons.
+    <b>Private:</b> your prompt stays in this page and is never sent anywhere.<br>
+    Unofficial; not affiliated with or endorsed by Anthropic. Suggestions are rules of thumb, not guarantees.
+    Rules and source: <a href="https://github.com/HapyrV/claude-model-advisor">github.com/HapyrV/claude-model-advisor</a> (MIT).</p>
+</main>
+
+<script src="model-advisor.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  const colors = { Haiku: 'var(--haiku)', Sonnet: 'var(--sonnet)', Opus: 'var(--opus)' };
+  let timer;
+
+  function render() {
+    const r = ModelAdvisor.advise($('prompt').value);
+    $('model').textContent = r.model || (r.continuation ? 'Keep current' : '—');
+    $('model').style.color = colors[r.model] || 'var(--text)';
+    $('effort').hidden = !r.effort;
+    $('effort').textContent = r.effort ? `${r.effort} effort` : '';
+    $('effort').style.color = colors[r.model] || 'var(--muted)';
+    $('summary').textContent = r.summary;
+    // map score -4..10 onto the bar
+    const pct = Math.max(2, Math.min(98, ((r.score + 4) / 14) * 100));
+    $('needle').style.left = (r.model ? pct : 30) + '%';
+    $('needle').style.opacity = r.model ? 1 : 0.25;
+    $('reasons').replaceChildren(...r.reasons.map(t => Object.assign(document.createElement('li'), { textContent: t })));
+  }
+
+  $('prompt').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 120); });
+  $('copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('prompt').value); $('copy').textContent = 'Copied'; }
+    catch { $('prompt').select(); document.execCommand('copy'); $('copy').textContent = 'Copied'; }
+    setTimeout(() => ($('copy').textContent = 'Copy prompt'), 1200);
+  });
+  $('clear').addEventListener('click', () => { $('prompt').value = ''; render(); $('prompt').focus(); });
+  render();
+</script>
+</body>
+</html>
